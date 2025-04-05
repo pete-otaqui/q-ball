@@ -13,6 +13,11 @@ type QBallEmitters<TData> = {
 	[K in keyof QBallEventMap<TData>]: (data: QBallEventMap<TData>[K]) => void;
 };
 
+export type QBallMessagePacket<TMessage> = {
+	message: TMessage;
+	attempt: number;
+};
+
 export type QBallObject<TMessage, TData> = {
 	/**
 	 * Add a message to the queue
@@ -52,25 +57,64 @@ export type QBallObject<TMessage, TData> = {
 
 export type QBallOptions<TMessage, TData> = {
 	autoStart?: boolean;
+	console?: Console;
+	debug?: boolean;
+	dlq?: QBallObject<TMessage, TData>;
 	messages?: TMessage[];
 	nextStopCheckFrequency?: number;
 	onProcessMessage?: (data: TData) => void;
+	redriveCount?: number;
+	redriveDelay?: (attempt: number, message: TMessage) => number;
 	stopOnError?: boolean;
 	workers?: number;
 };
 export function QBall<TMessage, TData>(
-	processor: (message: TMessage) => Promise<TData>,
+	processor: (messagePacket: TMessage) => Promise<TData>,
 	{
 		autoStart = true,
+		console = globalThis.console,
+		debug = false,
+		dlq,
 		messages = [],
 		nextStopCheckFrequency = 10,
 		onProcessMessage,
+		redriveCount = 0,
+		redriveDelay = () => 0,
 		stopOnError = false,
 		workers = 1,
 	}: QBallOptions<TMessage, TData> = {},
 ) {
+	const qBallId = Math.random().toString(36).substring(2, 15);
+	// biome-ignore lint/suspicious/noExplicitAny: Passing to console.log
+	const debugLog = (...args: any[]) => {
+		if (!debug) {
+			return;
+		}
+		console.log(`[QBall ${qBallId}]`, ...args);
+	};
 	let isProcessing = false;
 	let forceStopped = false;
+
+	const messagePackets: QBallMessagePacket<TMessage>[] = messages.map(
+		(message) => ({
+			message,
+			attempt: 0,
+		}),
+	);
+
+	const hasMessages = () => {
+		return messagePackets.length > 0;
+	};
+
+	const isAwaitingRetry = () => {
+		return workerObjects.some((workerObject) => {
+			return workerObject.isAwaitingRetry;
+		});
+	};
+
+	const getNextMessagePacket = () => {
+		return messagePackets.shift();
+	};
 
 	const listeners: QBallListeners<TData> = {
 		processed: [] as ((data: TData) => void)[],
@@ -96,66 +140,96 @@ export function QBall<TMessage, TData>(
 		},
 	};
 
-	const workerObjects = Array.from({ length: workers }, () => {
-		return {
-			process: async (message: TMessage) => {
-				try {
-					const data = await processor(message);
-					emitters.processed(data);
-				} catch (error) {
-					emitters.error(error as Error);
+	const workerObjects = Array.from({ length: workers }, (i) => {
+		const workerObject = {
+			index: i,
+			isWorking: false,
+			isAwaitingRetry: false,
+			start: async () => {
+				debugLog(`Worker ${i} started`);
+				while (isProcessing || isAwaitingRetry()) {
+					const messagePacket = getNextMessagePacket();
+					if (messagePacket) {
+						await workerObject.process(messagePacket);
+					} else {
+						const isAwaiting = isAwaitingRetry();
+						if (isProcessing && !isAwaiting) {
+							emitters.finished();
+						}
+					}
+					await new Promise((resolve) => {
+						setTimeout(resolve, 1);
+					});
 				}
 			},
+			process: async (messagePacket: QBallMessagePacket<TMessage>) => {
+				workerObject.isWorking = true;
+				messagePacket.attempt++;
+				debugLog(
+					`Worker ${i} processing message (attempt ${messagePacket.attempt})`,
+					messagePacket.message,
+				);
+				try {
+					const data = await processor(messagePacket.message);
+					emitters.processed(data);
+				} catch (error) {
+					debugLog(
+						`Worker ${i} error processing message (attempt ${messagePacket.attempt})`,
+						messagePacket.message,
+						error,
+					);
+					if (messagePacket.attempt < redriveCount) {
+						const delay = redriveDelay(
+							messagePacket.attempt,
+							messagePacket.message,
+						);
+						workerObject.isAwaitingRetry = true;
+						setTimeout(() => {
+							messagePackets.push(messagePacket);
+							setTimeout(() => {
+								startProcessing();
+								workerObject.isAwaitingRetry = false;
+							}, 0);
+						}, delay);
+					} else {
+						emitters.error(error as Error);
+						if (dlq) {
+							dlq.add(messagePacket.message);
+						}
+					}
+				}
+				workerObject.isWorking = false;
+			},
 		};
+		return workerObject;
 	});
 
 	const startProcessing = () => {
-		if (isProcessing) {
+		if (isProcessing && !isAwaitingRetry()) {
 			return;
 		}
-		if (messages.length === 0) {
+		if (!hasMessages()) {
 			emitters.finished();
 			return;
 		}
 		forceStopped = false;
 		isProcessing = true;
-		for (let i = 0; i < workers && messages.length; i++) {
-			const message = messages.shift();
-			if (message) {
-				workerObjects[i].process(message);
+		for (let i = 0; i < workers && messagePackets.length; i++) {
+			if (!workerObjects[i].isWorking) {
+				workerObjects[i].start();
 			}
 		}
 	};
 
 	listeners.processed.push(async () => {
-		if (forceStopped) {
-			return;
-		}
-		if (messages.length > 0 && isProcessing) {
-			// Process the next message
-			const message = messages.shift();
-			if (message) {
-				await workerObjects[0].process(message);
-			}
-		} else {
+		if (!hasMessages() && !isAwaitingRetry()) {
 			emitters.finished();
 		}
 	});
 	listeners.error.push((error) => {
 		if (stopOnError) {
 			forceStopped = true;
-			isProcessing = false;
 			emitters.finished();
-		} else {
-			if (messages.length > 0) {
-				// Process the next message
-				const message = messages.shift();
-				if (message) {
-					workerObjects[0].process(message);
-				}
-			} else {
-				emitters.finished();
-			}
 		}
 	});
 	listeners.finished.push(() => {
@@ -164,13 +238,16 @@ export function QBall<TMessage, TData>(
 	if (onProcessMessage) {
 		listeners.processed.push(onProcessMessage);
 	}
-	if (autoStart && messages.length > 0) {
+	if (autoStart && hasMessages()) {
 		startProcessing();
 	}
 
 	const qBallObject: QBallObject<TMessage, TData> = {
 		add(message: TMessage) {
-			messages.push(message);
+			messagePackets.push({
+				message,
+				attempt: 0,
+			});
 			if (autoStart) {
 				startProcessing();
 			}
@@ -183,7 +260,7 @@ export function QBall<TMessage, TData>(
 		stop() {
 			isProcessing = false;
 			// Emit the finished event if there are no messages to process
-			if (messages.length === 0) {
+			if (!hasMessages()) {
 				emitters.finished();
 			}
 			return qBallObject;
@@ -197,7 +274,7 @@ export function QBall<TMessage, TData>(
 			return qBallObject;
 		},
 		clear() {
-			messages.length = 0;
+			messagePackets.length = 0;
 			isProcessing = false;
 			emitters.finished();
 			return qBallObject;

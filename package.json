@@ -7,7 +7,9 @@
     "clean": "rimraf dist/*",
     "prebuild": "npm run clean",
     "lint": "biome lint",
-    "test": "tsx --test --experimental-test-coverage ./src/**.test.ts"
+    "test": "tsx --test --experimental-test-coverage ./src/**.test.ts",
+    "test:dist": "node --test --experimental-test-coverage ./dist/**.test.js",
+    "pretest:dist": "npm run build"
   },
   "main": "dist/index.js",
   "repository": "https://github.com/pete-otaqui/q-ball",

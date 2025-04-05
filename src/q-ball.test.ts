@@ -3,11 +3,11 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { QBall } from "./q-ball.js";
 
-describe("Q-Ball", () => {
-	const idProcessor = async (message: string) => {
-		return message;
-	};
+const idProcessor = async (message: string) => {
+	return message;
+};
 
+describe("QBall", () => {
 	it("should be able to create a Q-Ball", () => {
 		const qBall = QBall(idProcessor);
 		assert.ok(qBall, "Q-Ball should be created");
@@ -290,5 +290,116 @@ describe("Q-Ball", () => {
 		qBall.start();
 		await qBall.nextStop();
 		assert.strictEqual(processedCount, 2, "Two messages should be processed");
+	});
+
+	it("should only emit one finished event with multiple workers", async () => {
+		let finishedCount = 0;
+		const processor = async (message: string) => {
+			await new Promise((resolve) => setTimeout(resolve, 1));
+		};
+		const qBall = QBall(processor, {
+			autoStart: false,
+			messages: ["test1", "test2", "test3"],
+			workers: 2,
+			nextStopCheckFrequency: 1,
+		});
+		qBall.addEventListener("finished", () => {
+			finishedCount++;
+		});
+		qBall.start();
+		await qBall.nextStop();
+		assert.strictEqual(
+			finishedCount,
+			1,
+			"Finished event should be emitted only once",
+		);
+	});
+
+	it("should emit multiple finished event with autoStart and future messages", async () => {
+		let finishedCount = 0;
+		const processor = async (message: string) => {
+			await new Promise((resolve) => setTimeout(resolve, 1));
+		};
+		const qBall = QBall(processor, {
+			messages: ["test1", "test2", "test3"],
+			workers: 2,
+			nextStopCheckFrequency: 1,
+		});
+		qBall.addEventListener("finished", () => {
+			finishedCount++;
+		});
+		await qBall.nextStop();
+		qBall.add("test4");
+		qBall.add("test5");
+		await qBall.nextStop();
+		assert.strictEqual(
+			finishedCount,
+			2,
+			"Finished event should be emitted twice",
+		);
+	});
+
+	it("should print debug logs to the console", async () => {
+		const debugMessageSink: string[] = [];
+		const customConsole: Console = {
+			...console,
+			log: (message: string) => {
+				debugMessageSink.push(message);
+			},
+		};
+		const qBall = QBall(idProcessor, {
+			messages: ["test"],
+			debug: true,
+			console: customConsole,
+		});
+		await qBall.nextStop();
+		assert.ok(debugMessageSink.length > 0, "Debug messages should be logged");
+	});
+});
+
+describe("Redrive and DLQ", () => {
+	it("should redrive message after a failure", async () => {
+		const processCounts = [0, 0];
+		const processor = async (message: number) => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			processCounts[message]++;
+			throw new Error(`Test error for message ${message}`);
+		};
+		const qBall = QBall(processor, {
+			messages: [0, 1],
+			redriveCount: 2,
+		});
+		await qBall.nextStop();
+		assert.strictEqual(
+			processCounts[0],
+			2,
+			"First message processing should be attempted twice",
+		);
+		assert.strictEqual(
+			processCounts[1],
+			2,
+			"Second message processing should be attempted twice",
+		);
+	});
+	it("should send message to a DLQ after max redrive attempts", async () => {
+		const dlqSink: string[] = [];
+		const dlq = QBall(async (message: string) => {
+			dlqSink.push(message);
+		});
+		const errorProcessor = async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			throw new Error("Test error");
+		};
+		const qBall = QBall(errorProcessor, {
+			messages: ["message1", "message2"],
+			dlq,
+		});
+		await qBall.nextStop();
+		await dlq.nextStop();
+		assert.strictEqual(
+			dlqSink.length,
+			2,
+			"Both messages should be sent to DLQ",
+		);
 	});
 });
