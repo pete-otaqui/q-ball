@@ -12,7 +12,10 @@
     "pretest:dist": "npm run build"
   },
   "main": "dist/index.js",
-  "repository": "https://github.com/pete-otaqui/q-ball",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pete-otaqui/q-ball.git"
+  },
   "type": "module",
   "author": "Pete Otaqui <pete@otaqui.com>",
   "license": "MIT",

@@ -34,14 +34,19 @@ jobs:
       - name: Git push version bump
         run: |
           git push origin main --follow-tags --force
+          echo "Current MAIN commit: $(git rev-parse --short HEAD)"
           git fetch origin dev
           git checkout -B dev origin/dev
+          echo "Previous DEV commit: $(git rev-parse --short HEAD)"
           git merge main --ff-only
+          echo "Current DEV commit: $(git rev-parse --short HEAD)"
           git push origin dev --force
       - id: set-version
         name: Output version change
         run: npm pkg get version
   publish_npm:
+    needs: merge_pr
+    name: 'Publish to NPM'
     runs-on: ubuntu-latest
     permissions:
       contents: read
