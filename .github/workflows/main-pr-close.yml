@@ -34,7 +34,8 @@ jobs:
       - name: Git push version bump
         run: |
           git push origin main --follow-tags --force
-          git checkout dev
+          git fetch origin dev
+          git checkout -B dev origin/dev
           git merge main --ff-only
           git push origin dev --force
       - id: set-version
