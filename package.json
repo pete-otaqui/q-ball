@@ -1,0 +1,24 @@
+{
+  "name": "q-ball",
+  "version": "0.1.0",
+  "description": "A zero-dependency queue library",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist/*",
+    "prebuild": "npm run clean",
+    "lint": "biome lint",
+    "test": "tsx --test --experimental-test-coverage ./src/**.test.ts"
+  },
+  "main": "dist/index.js",
+  "repository": "https://github.com/pete-otaqui/q-ball",
+  "type": "module",
+  "author": "Pete Otaqui <pete@otaqui.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.14.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}
