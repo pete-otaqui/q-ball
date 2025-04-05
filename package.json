@@ -1,6 +1,6 @@
 {
   "name": "@pete-otaqui/q-ball",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A zero-dependency queue library",
   "scripts": {
     "build": "tsc",
