@@ -34,7 +34,25 @@ jobs:
       - name: Git push version bump
         run: |
           git push origin main --follow-tags --force
-          git push origin dev --follow-tags --force
+          git checkout dev
+          git merge main --ff-only
+          git push origin dev --force
       - id: set-version
         name: Output version change
         run: npm pkg get version
+  publish_npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      # Setup .npmrc file to publish to npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
