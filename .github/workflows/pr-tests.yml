@@ -1,11 +1,13 @@
-name: 'Dev - PR Test'
+name: 'PR Tests'
 on:
   pull_request:
     branches:
+      - main
       - dev
     types:
       - opened
       - reopened
+      - synchronize
 jobs:
   run_tests:
     name: 'Run Tests'
