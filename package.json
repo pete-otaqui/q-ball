@@ -1,5 +1,5 @@
 {
-  "name": "q-ball",
+  "name": "@pete-otaqui/q-ball",
   "version": "0.1.1",
   "description": "A zero-dependency queue library",
   "scripts": {
