@@ -38,7 +38,7 @@ jobs:
           git fetch origin dev
           git checkout -B dev origin/dev
           echo "Previous DEV commit: $(git rev-parse --short HEAD)"
-          git merge main --ff-only
+          git merge main --ff-only --allow-unrelated-histories
           echo "Current DEV commit: $(git rev-parse --short HEAD)"
           git push origin dev --force
       - id: set-version
