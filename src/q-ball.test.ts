@@ -63,6 +63,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(processor, {
 			messages: ["test1", "test2", "test3", "test4"],
 			workers: 2,
+			nextStopCheckFrequency: 1,
 		});
 		await qBall.nextStop();
 		assert.strictEqual(processedCount, 4, "Four messages should be processed");
@@ -76,6 +77,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(processor, {
 			messages: ["test1", "test2"],
 			workers: 4, // More workers than messages
+			nextStopCheckFrequency: 1,
 		});
 		await qBall.nextStop();
 		assert.strictEqual(
@@ -93,6 +95,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(idProcessor, {
 			onProcessMessage,
 			messages: ["test"],
+			nextStopCheckFrequency: 1,
 		});
 		await qBall.nextStop();
 		assert.strictEqual(
@@ -107,6 +110,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(idProcessor, {
 			autoStart: false,
 			messages: ["test"],
+			nextStopCheckFrequency: 1,
 		});
 		qBall.addEventListener("processed", (data) => {
 			eventCalled = true;
@@ -121,6 +125,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(idProcessor, {
 			autoStart: false,
 			messages: ["test"],
+			nextStopCheckFrequency: 1,
 		});
 		qBall.addEventListener("finished", () => {
 			eventCalled = true;
@@ -139,6 +144,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(processor, {
 			autoStart: false,
 			messages: ["test"],
+			nextStopCheckFrequency: 1,
 		});
 		qBall.addEventListener("error", (err) => {
 			eventCalled = true;
@@ -163,6 +169,7 @@ describe("Q-Ball", () => {
 			autoStart: false,
 			messages: ["test1", "test2"],
 			stopOnError: true,
+			nextStopCheckFrequency: 1,
 		});
 		qBall.start();
 		await qBall.nextStop();
@@ -182,6 +189,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(processor, {
 			messages: ["test1", "test2"],
 			stopOnError: false,
+			nextStopCheckFrequency: 1,
 		});
 		await qBall.nextStop();
 		assert.strictEqual(processedCount, 2, "Two messages should be processed");
@@ -210,6 +218,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(processor, {
 			autoStart: false,
 			messages: ["test1", "test2", "test3"],
+			nextStopCheckFrequency: 1,
 		});
 		qBall.clear();
 		qBall.start();
@@ -225,6 +234,7 @@ describe("Q-Ball", () => {
 		const qBall = QBall(idProcessor, {
 			autoStart: false,
 			messages: ["test"],
+			nextStopCheckFrequency: 1,
 		});
 		qBall.addEventListener("processed", listener);
 		qBall.removeEventListener("processed", listener);
@@ -275,6 +285,7 @@ describe("Q-Ball", () => {
 			messages: ["test1", "test2", "test3", "test4", "test5"],
 			workers: 2,
 			stopOnError: true,
+			nextStopCheckFrequency: 1,
 		});
 		qBall.start();
 		await qBall.nextStop();

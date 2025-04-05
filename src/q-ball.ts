@@ -53,6 +53,7 @@ export type QBallObject<TMessage, TData> = {
 export type QBallOptions<TMessage, TData> = {
 	autoStart?: boolean;
 	messages?: TMessage[];
+	nextStopCheckFrequency?: number;
 	onProcessMessage?: (data: TData) => void;
 	stopOnError?: boolean;
 	workers?: number;
@@ -62,6 +63,7 @@ export function QBall<TMessage, TData>(
 	{
 		autoStart = true,
 		messages = [],
+		nextStopCheckFrequency = 10,
 		onProcessMessage,
 		stopOnError = false,
 		workers = 1,
@@ -188,7 +190,9 @@ export function QBall<TMessage, TData>(
 		},
 		async nextStop() {
 			while (isProcessing) {
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				await new Promise((resolve) =>
+					setTimeout(resolve, nextStopCheckFrequency),
+				);
 			}
 			return qBallObject;
 		},
