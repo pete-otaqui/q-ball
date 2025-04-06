@@ -1,4 +1,7 @@
-src/
+src/examples/
+src/**/*.test.ts
+dist/examples/
+dist/**/*.test.js
 .github/
 .vscode/
 node_modules/
